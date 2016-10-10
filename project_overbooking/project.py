@@ -9,7 +9,7 @@ class ProjectLimitExceed(Exception):
 
 class Project(object):
     def __init__(
-            self, leaf, limit, used=0, overbooking_allowed=True):
+            self, leaf, limit, used=0, overbooking_allowed=False):
         self.leaf = leaf
         self.limit = limit
         self.used = used
@@ -29,17 +29,18 @@ class Project(object):
 
     def check_limit(self, value):
         self.used += value
-        if self.used + self.get_subproject_used() <= self.limit:
+        if self.limit == -1 or (
+                self.used + self.get_subproject_used() <= self.limit):
             if self.parent():
                 return self.parent().check_limit(0)
             return True
         else:
             if not self.overbooking_allowed:
-                raise ProjectLimitExceed
+                raise ProjectLimitExceed('Exceed in node %s' % self.leaf.name)
             else:
                 if self.parent():
                     return self.parent().check_limit(0)
-                raise ProjectLimitExceed
+                raise ProjectLimitExceed('Exceed in node %s' % self.leaf.name)
 
 
 class ProjectTree(object):
@@ -57,7 +58,11 @@ class ProjectTree(object):
         return self
 
     def use(self, name, value):
-        self.projects[name].check_limit(value)
+        try:
+            self.projects[name].check_limit(value)
+        except ProjectLimitExceed:
+            self.projects[name].used -= value
+            raise
 
     def structure(self):
         return self.tree.get_ascii(
