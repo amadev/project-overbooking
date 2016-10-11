@@ -10,17 +10,21 @@ class ProjectLimitExceed(Exception):
 
 class Project(object):
     def __init__(
-            self, leaf, limit, used=0, overbooking_allowed=False):
+            self, leaf, limit, used=None, overbooking_allowed=False):
         self.leaf = leaf
         self.limit = limit
+        if not used:
+            used = self.init_used(limit)
         self.used = used
         self.overbooking_allowed = overbooking_allowed
 
-    def get_subproject_used(self):
+    def get_subproject_used(self, resources):
         """Get sum of used resorces for all subtree"""
-        used = 0
+        used = self.init_used(resources)
         for leaf in self.leaf.children:
-            used += leaf.project.used + leaf.project.get_subproject_used()
+            sp_used = leaf.project.get_subproject_used(resources)
+            for resource in resources:
+                used[resource] += leaf.project.used[resource] + sp_used[resource]
         return used
 
     def parent(self):
@@ -28,20 +32,27 @@ class Project(object):
             return self.leaf.up.project
         return None
 
-    def check_limit(self, value):
-        self.used += value
-        if self.limit == -1 or (
-                self.used + self.get_subproject_used() <= self.limit):
-            if self.parent():
-                return self.parent().check_limit(0)
-            return True
-        else:
-            if not self.overbooking_allowed:
-                raise ProjectLimitExceed('Exceed in node %s' % self.leaf.name)
-            else:
+    def init_used(self, resources):
+        return {name: 0 for name in resources}
+
+    def check_limit(self, resources):
+        sp_used = self.get_subproject_used(resources)
+        for resource, value in resources.items():
+            self.used[resource] += value
+            total_used = sp_used[resource] + self.used[resource]
+            if self.limit[resource] == -1 or total_used <= self.limit[resource]:
                 if self.parent():
-                    return self.parent().check_limit(0)
-                raise ProjectLimitExceed('Exceed in node %s' % self.leaf.name)
+                    return self.parent().check_limit(self.init_used(resources))
+                return True
+            else:
+                if not self.overbooking_allowed:
+                    raise ProjectLimitExceed(
+                        'Exceed in node %s, resource %s' % (self.leaf.name, resource))
+                else:
+                    if self.parent():
+                        return self.parent().check_limit(self.init_used(resources))
+                    raise ProjectLimitExceed(
+                        'Exceed in node %s, resource %s' % (self.leaf.name, resource))
 
 
 class ProjectTree(object):
@@ -54,15 +65,16 @@ class ProjectTree(object):
         for leaf in self.tree.traverse():
             node_props = properties.get(leaf.name, {})
             self.projects[leaf.name] = Project(
-                leaf, leaf.dist, **node_props)
+                leaf, {'vm': leaf.dist}, **node_props)
             leaf.project = self.projects[leaf.name]
         return self
 
-    def use(self, name, value):
+    def use(self, project, resources):
         try:
-            self.projects[name].check_limit(value)
+            self.projects[project].check_limit(resources)
         except ProjectLimitExceed:
-            self.projects[name].used -= value
+            for resource, value in resources.items():
+                self.projects[project].used[resource] -= value
             raise
 
     def structure(self):
@@ -92,3 +104,11 @@ class ProjectTree(object):
             db.session.add(quota)
         db.session.add(root)
         db.session.commit()
+
+
+
+def load_tree():
+    projects = db.load_projects()
+    dct = {}
+    for project in projects:
+        dct[project.name] = Project()
