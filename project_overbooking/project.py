@@ -1,6 +1,7 @@
 """PoC of the project overbooking logic"""
 
 from ete3 import Tree
+from project_overbooking import db
 
 
 class ProjectLimitExceed(Exception):
@@ -67,3 +68,27 @@ class ProjectTree(object):
     def structure(self):
         return self.tree.get_ascii(
             attributes=["name", "dist"], show_internal=True)
+
+    def save(self):
+        nodes = {}
+        root = None
+        for el in self.tree.traverse():
+            parent = None
+            if el.up:
+                if el.up.name in nodes:
+                    parent = nodes[el.up.name]
+                else:
+                    parent = db.Project(name=el.up.name)
+                    nodes[el.up.name] = parent
+
+            if el.name in nodes:
+                project = nodes[el.name]
+            else:
+                project = db.Project(name=el.name, parent=parent)
+                nodes[el.name] = project
+            if not root:
+                root = project
+            quota = db.Quota(resource='vm', limit=el.dist, project=project)
+            db.session.add(quota)
+        db.session.add(root)
+        db.session.commit()

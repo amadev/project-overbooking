@@ -36,6 +36,7 @@ class ProjectTestCase(unittest.TestCase):
     def test_sb2(self):
         tree = ProjectTree().load(
             "((project1a: 7, project1b: -1)project0a:10,project0b:-1)domain:-1;")
+        tree.save()
         print tree.structure()
         tree.use('project0a', 5)
         self.assertRaisesRegexp(
