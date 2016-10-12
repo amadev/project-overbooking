@@ -1,8 +1,9 @@
+import os
+from collections import defaultdict
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy import Column, Integer, String, Sequence, ForeignKey
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, relationship, backref, joinedload
-from collections import defaultdict
 from sqlalchemy.orm.attributes import set_committed_value
 
 
@@ -83,7 +84,12 @@ def load_projects():
 
     return root
 
-engine = create_engine('sqlite:///:memory:', echo=True)
-Base.metadata.create_all(engine)
-Session = sessionmaker(bind=engine)
-session = Session()
+
+def create_db(conn_str):
+    engine = create_engine(conn_str, echo=True)
+    Base.metadata.create_all(engine)
+    Session = sessionmaker(bind=engine)
+    return Session()
+
+
+session = create_db(os.environ.get('POB_CONN_STR', 'sqlite:///:memory:'))

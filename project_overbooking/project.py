@@ -1,4 +1,5 @@
 """PoC of the project overbooking logic"""
+from collections import OrderedDict
 
 
 class ProjectLimitExceed(Exception):
@@ -21,7 +22,8 @@ class Project(object):
         for node in self.node.children:
             sp_used = node.project.get_subproject_used(resources)
             for resource in resources:
-                used[resource] += node.project.used[resource] + sp_used[resource]
+                used[resource] += (node.project.used[resource] +
+                                   sp_used[resource])
         return used
 
     def parent(self):
@@ -37,20 +39,23 @@ class Project(object):
         for resource, value in resources.items():
             self.used[resource] += value
             total_used = sp_used[resource] + self.used[resource]
-            if self.limit[resource] == -1 or total_used <= self.limit[resource]:
+            if (self.limit[resource] == -1 or
+                    total_used <= self.limit[resource]):
                 if self.parent():
                     self.parent().check_limit(self.init_used(resources))
                 continue
             else:
                 if not self.overbooking_allowed:
                     raise ProjectLimitExceed(
-                        'Exceed in node %s, resource %s' % (self.node.name, resource))
+                        'Exceed in node %s, resource %s' % (
+                            self.node.name, resource))
                 else:
                     if self.parent():
                         self.parent().check_limit(self.init_used(resources))
                     else:
                         raise ProjectLimitExceed(
-                            'Exceed in node %s, resource %s' % (self.node.name, resource))
+                            'Exceed in node %s, resource %s' % (
+                                self.node.name, resource))
         return True
 
 
@@ -62,7 +67,7 @@ class ProjectTree(object):
         - limits
         - children
         """
-        self.projects = {}
+        self.projects = OrderedDict()
         if properties is None:
             properties = {}
         self.properties = properties

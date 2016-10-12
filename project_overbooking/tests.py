@@ -41,6 +41,7 @@ class ProjectTestCase(unittest.TestCase):
         for p in tree.projects.values():
             p.limit['mem'] = 10
             p.used['mem'] = 0
+
         def run():
             tree.use('c', OrderedDict((("vm", 40), ("mem", 20))))
         self.assertRaisesRegexp(
@@ -51,7 +52,8 @@ class ProjectTestCase(unittest.TestCase):
 
     def test_sb1(self):
         tree = self._get_tree(
-            "((project1a: 7, project1b: 10)project0a:10,project0b:-1)domain:-1;")
+            ("((project1a: 7, project1b: 10)"
+             "project0a:10,project0b:-1)domain:-1;"))
         self.assertRaisesRegexp(
             ProjectLimitExceed, 'project1a', tree.use, 'project1a', {'vm': 8})
         tree.use('project1a', {'vm': 7})
@@ -60,7 +62,9 @@ class ProjectTestCase(unittest.TestCase):
         tree.use('project1b', {'vm': 3})
 
     def test_sb2(self):
-        tree = self._get_tree("((project1a: 7, project1b: -1)project0a:10,project0b:-1)domain:-1;")
+        tree = self._get_tree(
+            ("((project1a: 7, project1b: -1)"
+             "project0a:10,project0b:-1)domain:-1;"))
         tree.use('project0a', {'vm': 5})
         self.assertRaisesRegexp(
             ProjectLimitExceed, 'project0a', tree.use, 'project1a', {'vm': 6})
