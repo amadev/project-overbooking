@@ -1,31 +1,55 @@
 import unittest
 from project_overbooking import ProjectTree, ProjectLimitExceed
 from project_overbooking import db
+from ete3 import Tree
+from collections import OrderedDict
 
 
 class ProjectTestCase(unittest.TestCase):
+
+    def _load_tree(self, str):
+        tree = Tree(str, format=1)
+        for leaf in tree.traverse():
+            leaf.resources = {'vm': leaf.dist}
+        return tree
+
     def test_simple_overbooking_work(self):
         properties = {}
         for node in ('a', 'b', 'c', 'd'):
             properties[node] = {'overbooking_allowed': True}
-        tree = ProjectTree().load(
-            "(b:10,c:10,d:20)a:40;", properties=properties)
+        tree = self._load_tree("(b:10,c:10,d:20)a:40;")
+        tree = ProjectTree(tree, properties=properties)
         tree.use('b', {'vm': 11})
 
     def test_fail_if_overbooking_disabled_on_leaf(self):
-        tree = ProjectTree().load(
-            "(b:10,c:10,d:20)a:40;")
+        tree = self._load_tree("(b:10,c:10,d:20)a:40;")
+        tree = ProjectTree(tree)
         tree.use('b', {'vm': 5})
         self.assertRaises(ProjectLimitExceed, tree.use, 'b', {'vm': 6})
 
     def test_fail_if_sibling_eat_all(self):
-        tree = ProjectTree().load("(b:10,c:40,d:20)a:40;")
+        tree = self._load_tree("(b:10,c:40,d:20)a:40;")
+        tree = ProjectTree(tree)
         tree.use('c', {'vm': 40})
         self.assertRaises(ProjectLimitExceed, tree.use, 'b', {'vm': 1})
 
+    def test_fail_with_multiple_resources(self):
+        tree = self._load_tree("(b:10,c:40,d:20)a:40;")
+        for leaf in tree.traverse():
+            leaf.resources['mem'] = 10
+        tree = ProjectTree(tree)
+        def run():
+            tree.use('c', OrderedDict((("vm", 40), ("mem", 20))))
+        self.assertRaisesRegexp(
+            ProjectLimitExceed, 'Exceed in node c, resource mem', run)
+        tree.projects['c'].limit['mem'] = 30
+        self.assertRaisesRegexp(
+            ProjectLimitExceed, 'Exceed in node a, resource mem', run)
+
     def test_sb1(self):
-        tree = ProjectTree().load(
+        tree = self._load_tree(
             "((project1a: 7, project1b: 10)project0a:10,project0b:-1)domain:-1;")
+        tree = ProjectTree(tree)
         print tree.structure()
         self.assertRaisesRegexp(
             ProjectLimitExceed, 'project1a', tree.use, 'project1a', {'vm': 8})
@@ -35,8 +59,10 @@ class ProjectTestCase(unittest.TestCase):
         tree.use('project1b', {'vm': 3})
 
     def test_sb2(self):
-        tree = ProjectTree().load(
+        tree = self._load_tree(
             "((project1a: 7, project1b: -1)project0a:10,project0b:-1)domain:-1;")
+
+        tree = ProjectTree(tree)
         tree.save()
         print tree.structure()
         tree.use('project0a', {'vm': 5})

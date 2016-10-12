@@ -1,6 +1,5 @@
 """PoC of the project overbooking logic"""
 
-from ete3 import Tree
 from project_overbooking import db
 
 
@@ -42,32 +41,31 @@ class Project(object):
             total_used = sp_used[resource] + self.used[resource]
             if self.limit[resource] == -1 or total_used <= self.limit[resource]:
                 if self.parent():
-                    return self.parent().check_limit(self.init_used(resources))
-                return True
+                    self.parent().check_limit(self.init_used(resources))
+                continue
             else:
                 if not self.overbooking_allowed:
                     raise ProjectLimitExceed(
                         'Exceed in node %s, resource %s' % (self.leaf.name, resource))
                 else:
                     if self.parent():
-                        return self.parent().check_limit(self.init_used(resources))
-                    raise ProjectLimitExceed(
-                        'Exceed in node %s, resource %s' % (self.leaf.name, resource))
+                        self.parent().check_limit(self.init_used(resources))
+                    else:
+                        raise ProjectLimitExceed(
+                            'Exceed in node %s, resource %s' % (self.leaf.name, resource))
+        return True
 
 
 class ProjectTree(object):
-    def __init__(self):
+    def __init__(self, tree, properties={}):
+        self.tree = tree
         self.projects = {}
-        self.tree = None
 
-    def load(self, tree_string, properties={}):
-        self.tree = Tree(tree_string, format=1)
         for leaf in self.tree.traverse():
             node_props = properties.get(leaf.name, {})
             self.projects[leaf.name] = Project(
-                leaf, {'vm': leaf.dist}, **node_props)
+                leaf, leaf.resources, **node_props)
             leaf.project = self.projects[leaf.name]
-        return self
 
     def use(self, project, resources):
         try:
