@@ -1,7 +1,5 @@
 """PoC of the project overbooking logic"""
 
-from project_overbooking import db
-
 
 class ProjectLimitExceed(Exception):
     pass
@@ -9,8 +7,8 @@ class ProjectLimitExceed(Exception):
 
 class Project(object):
     def __init__(
-            self, leaf, limit, used=None, overbooking_allowed=False):
-        self.leaf = leaf
+            self, node, limit, used=None, overbooking_allowed=False):
+        self.node = node
         self.limit = limit
         if not used:
             used = self.init_used(limit)
@@ -20,15 +18,15 @@ class Project(object):
     def get_subproject_used(self, resources):
         """Get sum of used resorces for all subtree"""
         used = self.init_used(resources)
-        for leaf in self.leaf.children:
-            sp_used = leaf.project.get_subproject_used(resources)
+        for node in self.node.children:
+            sp_used = node.project.get_subproject_used(resources)
             for resource in resources:
-                used[resource] += leaf.project.used[resource] + sp_used[resource]
+                used[resource] += node.project.used[resource] + sp_used[resource]
         return used
 
     def parent(self):
-        if self.leaf.up:
-            return self.leaf.up.project
+        if self.node.up:
+            return self.node.up.project
         return None
 
     def init_used(self, resources):
@@ -46,26 +44,44 @@ class Project(object):
             else:
                 if not self.overbooking_allowed:
                     raise ProjectLimitExceed(
-                        'Exceed in node %s, resource %s' % (self.leaf.name, resource))
+                        'Exceed in node %s, resource %s' % (self.node.name, resource))
                 else:
                     if self.parent():
                         self.parent().check_limit(self.init_used(resources))
                     else:
                         raise ProjectLimitExceed(
-                            'Exceed in node %s, resource %s' % (self.leaf.name, resource))
+                            'Exceed in node %s, resource %s' % (self.node.name, resource))
         return True
 
 
 class ProjectTree(object):
-    def __init__(self, tree, properties={}):
-        self.tree = tree
+    def __init__(self, root, properties=None):
+        """
+        root - tree like object with attributes required:
+        - name
+        - limits
+        - children
+        """
         self.projects = {}
+        if properties is None:
+            properties = {}
+        self.properties = properties
+        self._load_tree(root)
 
-        for leaf in self.tree.traverse():
-            node_props = properties.get(leaf.name, {})
-            self.projects[leaf.name] = Project(
-                leaf, leaf.resources, **node_props)
-            leaf.project = self.projects[leaf.name]
+    def _load_tree(self, node):
+        if not self.projects:
+            self._init_project(node)
+        for leaf in node.children:
+            self._init_project(leaf, node)
+            self._load_tree(leaf)
+
+    def _init_project(self, node, parent=None):
+        node_props = self.properties.get(node.name, {})
+        node_props['limit'] = node.limits
+        self.projects[node.name] = Project(
+            node, **node_props)
+        node.project = self.projects[node.name]
+        node.up = parent
 
     def use(self, project, resources):
         try:
@@ -74,39 +90,3 @@ class ProjectTree(object):
             for resource, value in resources.items():
                 self.projects[project].used[resource] -= value
             raise
-
-    def structure(self):
-        return self.tree.get_ascii(
-            attributes=["name", "dist"], show_internal=True)
-
-    def save(self):
-        nodes = {}
-        root = None
-        for el in self.tree.traverse():
-            parent = None
-            if el.up:
-                if el.up.name in nodes:
-                    parent = nodes[el.up.name]
-                else:
-                    parent = db.Project(name=el.up.name)
-                    nodes[el.up.name] = parent
-
-            if el.name in nodes:
-                project = nodes[el.name]
-            else:
-                project = db.Project(name=el.name, parent=parent)
-                nodes[el.name] = project
-            if not root:
-                root = project
-            quota = db.Quota(resource='vm', limit=el.dist, project=project)
-            db.session.add(quota)
-        db.session.add(root)
-        db.session.commit()
-
-
-
-def load_tree():
-    projects = db.load_projects()
-    dct = {}
-    for project in projects:
-        dct[project.name] = Project()
