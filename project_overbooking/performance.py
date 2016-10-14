@@ -7,7 +7,7 @@ from project_overbooking import ProjectTree
 from project_overbooking import db
 
 
-CYCLES = 10
+CYCLES = 100
 
 
 def randomword(length):
@@ -15,6 +15,9 @@ def randomword(length):
 
 
 class PerformanceTestCase(unittest.TestCase):
+    def setUp(self):
+        db.reset()
+
     def _test_run(self, num, cycles):
         root = Tree()
         root.populate(num)
@@ -25,7 +28,7 @@ class PerformanceTestCase(unittest.TestCase):
             leaf.limits = {'vm': leaf.dist}
 
         leaf, _ = root.get_farthest_leaf()
-        f = open('/tmp/po_perf_%s' % num, 'w+')
+        f = open('po_perf_%s' % num, 'w')
         db.save_projects(ProjectTree(root))
         for i in range(cycles):
             db_start = time.time()

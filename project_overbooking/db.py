@@ -85,11 +85,15 @@ def load_projects():
     return root
 
 
-def create_db(conn_str):
-    engine = create_engine(conn_str, echo=True)
-    Base.metadata.create_all(engine)
-    Session = sessionmaker(bind=engine)
-    return Session()
+def reset():
+    global session
+    Base.metadata.drop_all(bind=engine)
+    Base.metadata.create_all(bind=engine)
+    session = Session()
 
 
-session = create_db(os.environ.get('POB_CONN_STR', 'sqlite:///:memory:'))
+engine = create_engine(
+    os.environ.get('POB_CONN_STR', 'sqlite:///:memory:'), echo=True)
+Base.metadata.create_all(engine)
+Session = sessionmaker(bind=engine)
+session = Session()
