@@ -43,23 +43,21 @@ def save_projects(tree):
     nodes = {}
     root = None
     for p in tree.projects.values():
-        el = p.node
         parent = None
-        if el.up:
-            if el.up.name in nodes:
-                parent = nodes[el.up.name]
+        if p.parent:
+            if p.parent.name in nodes:
+                parent = nodes[p.parent.name]
             else:
-                parent = Project(name=el.up.name)
-                nodes[el.up.name] = parent
-
-        if el.name in nodes:
-            project = nodes[el.name]
+                parent = Project(name=p.parent.name)
+                nodes[p.parent.name] = parent
+        if p.name in nodes:
+            project = nodes[p.name]
         else:
-            project = Project(name=el.name, parent=parent)
-            nodes[el.name] = project
+            project = Project(name=p.name, parent=parent)
+            nodes[p.name] = project
         if not root:
             root = project
-        quota = Quota(resource='vm', limit=el.dist, project=project)
+        quota = Quota(resource='vm', limit=p.limits['vm'], project=project)
         session.add(quota)
     session.add(root)
     session.commit()

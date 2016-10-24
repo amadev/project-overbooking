@@ -10,7 +10,7 @@ class ProjectTestCase(unittest.TestCase):
     def _get_tree(self, str, properties=None):
         root = Tree(str, format=1)
         for leaf in root.traverse():
-            leaf.limits = {'vm': leaf.dist}
+             leaf.limits = {'vm': leaf.dist}
         print self._tree_structure(root)
         db.save_projects(ProjectTree(root))
         return ProjectTree(db.load_projects(), properties=properties)
@@ -32,14 +32,14 @@ class ProjectTestCase(unittest.TestCase):
     def test_fail_with_multiple_resources(self):
         tree = self._get_tree("(b:10,c:40,d:20)a:40;")
         for p in tree.projects.values():
-            p.limit['mem'] = 10
-            p.used['mem'] = 0
+            p.limits['mem'] = 10
+            p.usages['mem'] = 0
 
         def run():
             tree.use('c', OrderedDict((("vm", 40), ("mem", 20))))
         self.assertRaisesRegexp(
             ProjectLimitExceed, 'Exceed in node c, resource mem', run)
-        tree.projects['c'].limit['mem'] = 30
+        tree.projects['c'].limits['mem'] = 30
         self.assertRaisesRegexp(
             ProjectLimitExceed, 'Exceed in node a, resource mem', run)
 
