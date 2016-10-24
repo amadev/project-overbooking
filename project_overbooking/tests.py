@@ -19,14 +19,7 @@ class ProjectTestCase(unittest.TestCase):
         return tree.get_ascii(
             attributes=["name", "dist"], show_internal=True)
 
-    def test_simple_overbooking_work(self):
-        properties = {}
-        for node in ('a', 'b', 'c', 'd'):
-            properties[node] = {'overbooking_allowed': True}
-        tree = self._get_tree("(b:10,c:10,d:20)a:40;", properties)
-        tree.use('b', {'vm': 11})
-
-    def test_fail_if_overbooking_disabled_on_leaf(self):
+    def test_fail_on_overuse(self):
         tree = self._get_tree("(b:10,c:10,d:20)a:40;")
         tree.use('b', {'vm': 5})
         self.assertRaises(ProjectLimitExceed, tree.use, 'b', {'vm': 6})

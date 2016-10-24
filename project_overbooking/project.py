@@ -6,15 +6,17 @@ class ProjectLimitExceed(Exception):
     pass
 
 
+OVERBOOKING_ALLOWED = True
+
+
 class Project(object):
     def __init__(
-            self, node, limit, used=None, overbooking_allowed=False):
+            self, node, limit, used=None):
         self.node = node
         self.limit = limit
         if not used:
             used = self.init_used(limit)
         self.used = used
-        self.overbooking_allowed = overbooking_allowed
 
     def get_subproject_used(self, resources):
         """Get sum of used resorces for all subtree"""
@@ -34,28 +36,20 @@ class Project(object):
     def init_used(self, resources):
         return {name: 0 for name in resources}
 
-    def check_limit(self, resources):
-        sp_used = self.get_subproject_used(resources)
-        for resource, value in resources.items():
+    def check_limit(self, deltas):
+        sp_used = self.get_subproject_used(deltas)
+        for resource, value in deltas.items():
             self.used[resource] += value
             total_used = sp_used[resource] + self.used[resource]
             if (self.limit[resource] == -1 or
                     total_used <= self.limit[resource]):
-                if self.parent():
-                    self.parent().check_limit(self.init_used(resources))
+                if OVERBOOKING_ALLOWED and self.parent():
+                    self.parent().check_limit(self.init_used(deltas))
                 continue
             else:
-                if not self.overbooking_allowed:
-                    raise ProjectLimitExceed(
-                        'Exceed in node %s, resource %s' % (
-                            self.node.name, resource))
-                else:
-                    if self.parent():
-                        self.parent().check_limit(self.init_used(resources))
-                    else:
-                        raise ProjectLimitExceed(
-                            'Exceed in node %s, resource %s' % (
-                                self.node.name, resource))
+                raise ProjectLimitExceed(
+                    'Exceed in node %s, resource %s' % (
+                        self.node.name, resource))
         return True
 
 
